@@ -818,7 +818,27 @@
             }
             
             const slippage = parseFloat(document.getElementById('slippageInput').value);
-            await compareAggregators(amount, slippage, selectedCrypto);
+            
+            // Achat direct sans comparaison
+            const bestDex = DEX_AGGREGATORS.pancakeswap;
+            try {
+                const amountInWei = BigInt(Math.floor(amount * 1e18));
+                const path = [USDT_ADDRESS, selectedCrypto.address];
+                const quote = await getQuoteFromDex(bestDex.router, amountInWei, path);
+                
+                const dexInfo = {
+                    name: bestDex.name,
+                    icon: bestDex.icon,
+                    color: bestDex.color,
+                    router: bestDex.router,
+                    amountOut: quote,
+                    success: true
+                };
+                
+                proposePurchaseWithDex(amount, slippage, selectedCrypto, dexInfo);
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
         }
 
         async function compareAggregators(amount, slippage, crypto) {
@@ -1092,7 +1112,8 @@
             const timeUntilNext = dcaConfig.nextRun - now;
             
             if (timeUntilNext <= 0) {
-                compareAggregators(dcaConfig.amount, dcaConfig.slippage, dcaConfig.crypto);
+                // Achat direct sans comparaison pour le DCA
+                executeDCABuy();
                 dcaConfig.nextRun = now + dcaConfig.interval * 1000;
             }
             
@@ -1113,6 +1134,28 @@
             }
             
             document.getElementById('nextExecution').textContent = timeText;
+        }
+
+        async function executeDCABuy() {
+            const bestDex = DEX_AGGREGATORS.pancakeswap;
+            try {
+                const amountInWei = BigInt(Math.floor(dcaConfig.amount * 1e18));
+                const path = [USDT_ADDRESS, dcaConfig.crypto.address];
+                const quote = await getQuoteFromDex(bestDex.router, amountInWei, path);
+                
+                const dexInfo = {
+                    name: bestDex.name,
+                    icon: bestDex.icon,
+                    color: bestDex.color,
+                    router: bestDex.router,
+                    amountOut: quote,
+                    success: true
+                };
+                
+                proposePurchaseWithDex(dcaConfig.amount, dcaConfig.slippage, dcaConfig.crypto, dexInfo);
+            } catch (error) {
+                console.error('Erreur DCA:', error);
+            }
         }
 
         function proposePurchaseWithDex(amount, slippage, crypto, dexInfo) {
