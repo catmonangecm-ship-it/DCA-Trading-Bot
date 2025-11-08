@@ -830,11 +830,16 @@
             const amountInWei = BigInt(Math.floor(amount * 1e18));
             const path = [USDT_ADDRESS, crypto.address];
             
+            console.log('Comparaison des DEX pour', amount, 'USDT vers', crypto.symbol);
+            console.log('Path:', path);
+            
             const results = [];
             
             for (const [key, dex] of Object.entries(DEX_AGGREGATORS)) {
+                console.log(`Test de ${dex.name}...`);
                 try {
                     const quote = await getQuoteFromDex(dex.router, amountInWei, path);
+                    console.log(`${dex.name}: ${quote.toString()}`);
                     results.push({
                         key: key,
                         name: dex.name,
@@ -845,6 +850,7 @@
                         success: true
                     });
                 } catch (error) {
+                    console.error(`Erreur ${dex.name}:`, error.message);
                     results.push({
                         key: key,
                         name: dex.name,
@@ -852,9 +858,29 @@
                         color: dex.color,
                         router: dex.router,
                         amountOut: 0n,
-                        success: false
+                        success: false,
+                        error: error.message
                     });
                 }
+                
+                // Petit délai entre chaque appel
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+            
+            console.log('Résultats:', results);
+            
+            // Vérifier si au moins un DEX a fonctionné
+            const hasSuccess = results.some(r => r.success);
+            
+            if (!hasSuccess) {
+                document.getElementById('dexComparison').innerHTML = `
+                    <div class="alert alert-warning">
+                        ⚠️ Impossible de récupérer les prix. Vérifiez que vous êtes bien sur le réseau BSC.
+                        <br><br>
+                        <button class="btn btn-danger" onclick="closeComparison()">Fermer</button>
+                    </div>
+                `;
+                return;
             }
             
             results.sort((a, b) => {
@@ -867,27 +893,58 @@
         }
 
         async function getQuoteFromDex(routerAddress, amountIn, path) {
-            const data = '0xd06ca61f' +
-                amountIn.toString(16).padStart(64, '0') +
-                '0000000000000000000000000000000000000000000000000000000000000040' +
-                '0000000000000000000000000000000000000000000000000000000000000002' +
-                path[0].substring(2).padStart(64, '0') +
-                path[1].substring(2).padStart(64, '0');
-            
-            const result = await window.ethereum.request({
-                method: 'eth_call',
-                params: [{
-                    to: routerAddress,
-                    data: data
-                }, 'latest']
-            });
-            
-            const resultHex = result.substring(2);
-            const arrayLength = parseInt(resultHex.substring(64, 128), 16);
-            const lastElementOffset = 128 + (arrayLength - 1) * 64;
-            const amountOut = BigInt('0x' + resultHex.substring(lastElementOffset, lastElementOffset + 64));
-            
-            return amountOut;
+            try {
+                // Préparer les données pour getAmountsOut(uint amountIn, address[] path)
+                const amountInHex = amountIn.toString(16).padStart(64, '0');
+                const path0 = path[0].substring(2).toLowerCase().padStart(64, '0');
+                const path1 = path[1].substring(2).toLowerCase().padStart(64, '0');
+                
+                const data = '0xd06ca61f' + // getAmountsOut selector
+                    amountInHex +
+                    '0000000000000000000000000000000000000000000000000000000000000040' + // offset to path array
+                    '0000000000000000000000000000000000000000000000000000000000000002' + // path length = 2
+                    path0 +
+                    path1;
+                
+                console.log('Calling DEX:', routerAddress);
+                
+                const result = await window.ethereum.request({
+                    method: 'eth_call',
+                    params: [{
+                        to: routerAddress,
+                        data: data
+                    }, 'latest']
+                });
+                
+                if (!result || result === '0x') {
+                    throw new Error('Pas de réponse du routeur');
+                }
+                
+                // Parser le résultat
+                const resultHex = result.substring(2);
+                
+                // Le résultat est un array, on récupère la longueur
+                const arrayLength = parseInt(resultHex.substring(64, 128), 16);
+                
+                if (arrayLength !== 2) {
+                    throw new Error('Réponse invalide du routeur');
+                }
+                
+                // Le dernier élément (amounts[1]) est à la position 128 + 64
+                const amountOutHex = resultHex.substring(192, 256);
+                const amountOut = BigInt('0x' + amountOutHex);
+                
+                if (amountOut === 0n) {
+                    throw new Error('Prix retourné est 0');
+                }
+                
+                console.log('Quote obtenu:', amountOut.toString());
+                return amountOut;
+                
+            } catch (error) {
+                console.error('Erreur getQuote:', error);
+                throw error;
+            }
         }
 
         function displayComparisonResults(results, amount, slippage, crypto) {
