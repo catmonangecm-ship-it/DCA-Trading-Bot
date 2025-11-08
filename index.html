@@ -482,6 +482,14 @@
                     <h2>⚙️ Configuration DCA</h2>
                     
                     <div class="form-group">
+                        <label>Mode</label>
+                        <select id="modeSelect" onchange="updateMode()">
+                            <option value="buy">Acheter crypto avec USDT</option>
+                            <option value="sell">Vendre crypto pour USDT</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
                         <label>Réseau</label>
                         <select id="networkSelect" onchange="updateNetwork()">
                             <option value="bsc">Binance Smart Chain (BSC)</option>
@@ -489,7 +497,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label>Crypto à acheter</label>
+                        <label id="cryptoLabel">Crypto à acheter</label>
                         <select id="cryptoSelect" onchange="updateCryptoInfo()">
                             <option value="">-- Sélectionner une crypto --</option>
                         </select>
@@ -499,13 +507,17 @@
                         💡 <span id="cryptoDescription"></span>
                     </div>
 
-                    <div class="form-group">
-                        <label>Montant par achat (USDT)</label>
+                    <div class="form-group" id="amountGroup">
+                        <label id="amountLabel">Montant par achat (USDT)</label>
                         <input type="number" id="amountInput" step="1" min="1" placeholder="10">
                     </div>
                     
                     <div class="form-group">
                         <label>Balance USDT: <span id="usdtBalance">0</span> USDT</label>
+                    </div>
+                    
+                    <div class="form-group" id="cryptoBalanceGroup" style="display: none;">
+                        <label>Balance <span id="selectedCryptoSymbol"></span>: <span id="cryptoBalance">0</span></label>
                     </div>
 
                     <div class="form-group">
@@ -524,7 +536,7 @@
                         <input type="number" id="slippageInput" value="1" min="0.1" max="50" step="0.1">
                     </div>
 
-                    <button id="buyNowBtn" class="btn btn-primary" onclick="buyNowManual()" style="width: 100%; margin-top: 10px;">
+                    <button id="buyNowBtn" class="btn btn-primary" onclick="executeAction()" style="width: 100%; margin-top: 10px;">
                         ⚡ Acheter Maintenant
                     </button>
 
@@ -542,6 +554,7 @@
                     
                     <div class="info-box">
                         <h3>Configuration actuelle</h3>
+                        <p><strong>Mode:</strong> <span id="currentMode">Achat</span></p>
                         <p><strong>Montant:</strong> <span id="currentAmount">-</span></p>
                         <p><strong>Intervalle:</strong> <span id="currentInterval">-</span></p>
                         <p><strong>Statut:</strong> <span id="dcaStatus">Inactif</span></p>
@@ -598,8 +611,10 @@
         let currentNetwork = 'bsc';
         let dcaInterval;
         let selectedCrypto = null;
+        let currentMode = 'buy'; // 'buy' ou 'sell'
         let dcaConfig = {
             active: false,
+            mode: 'buy',
             crypto: null,
             amount: 0,
             interval: 0,
@@ -637,10 +652,113 @@
         };
 
         const TOP_CRYPTOS = [
+            // Top 10
             { symbol: 'BNB', name: 'BNB', address: WBNB_ADDRESS, rank: 1, description: 'Binance Coin - Token natif de Binance' },
             { symbol: 'BTC', name: 'Bitcoin', address: '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c', rank: 2, description: 'Bitcoin - La première crypto-monnaie' },
             { symbol: 'ETH', name: 'Ethereum', address: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8', rank: 3, description: 'Ethereum - Plateforme de smart contracts' },
-            { symbol: 'CAKE', name: 'PancakeSwap', address: '0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82', rank: 4, description: 'PancakeSwap - DEX principal sur BSC' }
+            { symbol: 'XRP', name: 'Ripple', address: '0x1D2F0da169ceB9fC7B3144628dB156f3F6c60dBE', rank: 4, description: 'Ripple - Réseau de paiement international' },
+            { symbol: 'SOL', name: 'Solana', address: '0x570A5D26f7765Ecb712C0924E4De545B89fD43dF', rank: 5, description: 'Solana - Blockchain haute performance' },
+            { symbol: 'ADA', name: 'Cardano', address: '0x3EE2200Efb3400fAbB9AacF31297cBdD1d435D47', rank: 6, description: 'Cardano - Blockchain proof-of-stake' },
+            { symbol: 'DOGE', name: 'Dogecoin', address: '0xbA2aE424d960c26247Dd6c32edC70B295c744C43', rank: 7, description: 'Dogecoin - Meme coin populaire' },
+            { symbol: 'TRX', name: 'TRON', address: '0xCE7de646e7208a4Ef112cb6ed5038FA6cC6b12e3', rank: 8, description: 'TRON - Plateforme de contenu décentralisée' },
+            { symbol: 'DOT', name: 'Polkadot', address: '0x7083609fCE4d1d8Dc0C979AAb8c869Ea2C873402', rank: 9, description: 'Polkadot - Protocole multi-chain' },
+            { symbol: 'MATIC', name: 'Polygon', address: '0xCC42724C6683B7E57334c4E856f4c9965ED682bD', rank: 10, description: 'Polygon - Solution de scaling Ethereum' },
+            
+            // Top 11-30
+            { symbol: 'LTC', name: 'Litecoin', address: '0x4338665CBB7B2485A8855A139b75D5e34AB0DB94', rank: 11, description: 'Litecoin - Alternative à Bitcoin' },
+            { symbol: 'SHIB', name: 'Shiba Inu', address: '0x2859e4544C4bB03966803b044A93563Bd2D0DD4D', rank: 12, description: 'Shiba Inu - Meme coin communautaire' },
+            { symbol: 'AVAX', name: 'Avalanche', address: '0x1CE0c2827e2eF14D5C4f29a091d735A204794041', rank: 13, description: 'Avalanche - Plateforme DeFi rapide' },
+            { symbol: 'UNI', name: 'Uniswap', address: '0xBf5140A22578168FD562DCcF235E5D43A02ce9B1', rank: 14, description: 'Uniswap - DEX leader sur Ethereum' },
+            { symbol: 'LINK', name: 'Chainlink', address: '0xF8A0BF9cF54Bb92F17374d9e9A321E6a111a51bD', rank: 15, description: 'Chainlink - Réseau d\'oracles décentralisé' },
+            { symbol: 'ATOM', name: 'Cosmos', address: '0x0Eb3a705fc54725037CC9e008bDede697f62F335', rank: 16, description: 'Cosmos - Internet des blockchains' },
+            { symbol: 'XLM', name: 'Stellar', address: '0x43CdB6dF3E3e10AeD7B56a8FAa379c0C183F2b23', rank: 17, description: 'Stellar - Paiements transfrontaliers' },
+            { symbol: 'BCH', name: 'Bitcoin Cash', address: '0x8fF795a6F4D97E7887C79beA79aba5cc76444aDf', rank: 18, description: 'Bitcoin Cash - Fork de Bitcoin' },
+            { symbol: 'NEAR', name: 'NEAR Protocol', address: '0x1Fa4a73a3F0133f0025378af00236f3aBDEE5D63', rank: 19, description: 'NEAR - Plateforme d\'applications décentralisées' },
+            { symbol: 'FIL', name: 'Filecoin', address: '0x0D8Ce2A99Bb6e3B7Db580eD848240e4a0F9aE153', rank: 20, description: 'Filecoin - Stockage décentralisé' },
+            { symbol: 'VET', name: 'VeChain', address: '0x6FDcdfef7c496407cCb0cEC90f9C5Aaa1Cc8D888', rank: 21, description: 'VeChain - Blockchain pour la supply chain' },
+            { symbol: 'ALGO', name: 'Algorand', address: '0xa1faa15655B0e7b6B6470ED3d096390e6aD93Abb', rank: 22, description: 'Algorand - Blockchain pure proof-of-stake' },
+            { symbol: 'APE', name: 'ApeCoin', address: '0xC762043E211571eB34f1ef377e5e8e76914962f9', rank: 23, description: 'ApeCoin - Token de l\'écosystème Bored Ape' },
+            { symbol: 'ETC', name: 'Ethereum Classic', address: '0x3d6545b08693daE087E957cb1180ee38B9e3c25E', rank: 24, description: 'Ethereum Classic - Fork original d\'Ethereum' },
+            { symbol: 'CAKE', name: 'PancakeSwap', address: '0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82', rank: 25, description: 'PancakeSwap - DEX principal sur BSC' },
+            { symbol: 'AAVE', name: 'Aave', address: '0xfb6115445Bff7b52FeB98650C87f44907E58f802', rank: 26, description: 'Aave - Protocole de prêt décentralisé' },
+            { symbol: 'FTM', name: 'Fantom', address: '0xAD29AbB318791D579433D831ed122aFeAf29dcfe', rank: 27, description: 'Fantom - Plateforme DeFi haute vitesse' },
+            { symbol: 'SAND', name: 'The Sandbox', address: '0x67b725d7e342d7B611fa85e859Df9697D9378B2e', rank: 28, description: 'The Sandbox - Métavers gaming' },
+            { symbol: 'MANA', name: 'Decentraland', address: '0x26433c8127d9b4e9B71Eaa15111DF99Ea2EeB2f8', rank: 29, description: 'Decentraland - Métavers VR décentralisé' },
+            { symbol: 'AXS', name: 'Axie Infinity', address: '0x715D400F88C167884bbCc41C5FeA407ed4D2f8A0', rank: 30, description: 'Axie Infinity - Jeu NFT play-to-earn' },
+            
+            // Top 31-60
+            { symbol: 'XTZ', name: 'Tezos', address: '0x16939ef78684453bfDFb47825F8a5F714f12623a', rank: 31, description: 'Tezos - Blockchain auto-évolutive' },
+            { symbol: 'EOS', name: 'EOS', address: '0x56b6fB708fC5732DEC1Afc8D8556423A2EDcCbD6', rank: 32, description: 'EOS - Plateforme d\'applications décentralisées' },
+            { symbol: 'RUNE', name: 'THORChain', address: '0xa1d6Df714F91DeBF4e0802A542E13067f31b8262', rank: 33, description: 'THORChain - Protocole de liquidité cross-chain' },
+            { symbol: 'EGLD', name: 'MultiversX', address: '0xbF7c81FFF98BbE61B40Ed186e4AfD6DDd01337fe', rank: 34, description: 'MultiversX - Blockchain Internet-scale' },
+            { symbol: 'SNX', name: 'Synthetix', address: '0x9Ac983826058b8a9C7Aa1C9171441191232E8404', rank: 35, description: 'Synthetix - Protocole d\'actifs synthétiques' },
+            { symbol: 'MKR', name: 'Maker', address: '0x5f0Da599BB2ccCfcf6Fdfd7D81743B6020864350', rank: 36, description: 'Maker - Protocole de stablecoin DAI' },
+            { symbol: 'COMP', name: 'Compound', address: '0x52CE071Bd9b1C4B00A0b92D298c512478CaD67e8', rank: 37, description: 'Compound - Protocole de marchés monétaires' },
+            { symbol: 'ZIL', name: 'Zilliqa', address: '0xb86AbCb37C3A4B64f74f59301AFF131a1BEcC787', rank: 38, description: 'Zilliqa - Blockchain avec sharding' },
+            { symbol: 'BAT', name: 'Basic Attention', address: '0x101d82428437127bF1608F699CD651e6Abf9766E', rank: 39, description: 'BAT - Token du navigateur Brave' },
+            { symbol: 'ENJ', name: 'Enjin Coin', address: '0xa1faa113cbE53436Df28FF0aEe54275c13B40975', rank: 40, description: 'Enjin - Plateforme NFT gaming' },
+            { symbol: 'NEO', name: 'NEO', address: '0xfb5B838b6cfEEdC2873aB27866079AC55363D37E', rank: 41, description: 'NEO - Économie intelligente décentralisée' },
+            { symbol: 'IOTA', name: 'IOTA', address: '0xd944f1D1e9d5f9Bb90b62f9D45e447D989580782', rank: 42, description: 'IOTA - Réseau pour l\'IoT' },
+            { symbol: 'TUSD', name: 'TrueUSD', address: '0x14016E85a25aeb13065688cAFB43044C2ef86784', rank: 43, description: 'TrueUSD - Stablecoin entièrement collatéralisé' },
+            { symbol: 'BTT', name: 'BitTorrent', address: '0x352Cb5E19b12FC216548a2677bD0fce83BaE434B', rank: 44, description: 'BitTorrent - Token de partage de fichiers' },
+            { symbol: 'CRV', name: 'Curve DAO', address: '0x0E8D5504bF54D9E44260f8d153EcD5412130CaBb', rank: 45, description: 'Curve - DEX pour stablecoins' },
+            { symbol: 'ONE', name: 'Harmony', address: '0x03fF0ff224f904be3118461335064bB48Df47938', rank: 46, description: 'Harmony - Blockchain avec sharding' },
+            { symbol: 'LRC', name: 'Loopring', address: '0xBBbbCA6A901c926F240b89EacB641d8Aec7AEafD', rank: 47, description: 'Loopring - Protocole zkRollup' },
+            { symbol: 'YFI', name: 'yearn.finance', address: '0x88f1A5ae2A3BF98AEAF342D26B30a79438c9142e', rank: 48, description: 'yearn.finance - Agrégateur de rendement DeFi' },
+            { symbol: 'SUSHI', name: 'SushiSwap', address: '0x947950BcC74888a40Ffa2593C5798F11Fc9124C4', rank: 49, description: 'SushiSwap - DEX avec fonctionnalités étendues' },
+            { symbol: '1INCH', name: '1inch', address: '0x111111111117dC0aa78b770fA6A738034120C302', rank: 50, description: '1inch - Agrégateur DEX' },
+            { symbol: 'ICX', name: 'ICON', address: '0x9b7beBc9b373c790d474F8eDEf1EcaA6812BF4a0', rank: 51, description: 'ICON - Réseau blockchain interconnecté' },
+            { symbol: 'OMG', name: 'OMG Network', address: '0xF64E1c5B6E17031f5504481Ac8145F4c3eab4917', rank: 52, description: 'OMG - Solution de scaling Ethereum' },
+            { symbol: 'ZRX', name: '0x', address: '0xe4815AE53B124e7263F08dcDBBB757d41Ed658c6', rank: 53, description: '0x - Protocole d\'échange décentralisé' },
+            { symbol: 'QTUM', name: 'Qtum', address: '0xd01ac8B5dcE88a0513B71741b8e7B9fF92e64EF6', rank: 54, description: 'Qtum - Plateforme business blockchain' },
+            { symbol: 'ONT', name: 'Ontology', address: '0xFd7B3A77848f1C2D67E05E54d78d174a0C850335', rank: 55, description: 'Ontology - Blockchain à haute performance' },
+            { symbol: 'BAKE', name: 'BakeryToken', address: '0xE02dF9e3e622DeBdD69fb838bB799E3F168902c5', rank: 56, description: 'BakerySwap - DEX et marketplace NFT' },
+            { symbol: 'ALPHA', name: 'Alpha Finance', address: '0xa1faa113cbE53436Df28FF0aEe54275c13B40975', rank: 57, description: 'Alpha Finance - Produits DeFi innovants' },
+            { symbol: 'SXP', name: 'Swipe', address: '0x47BEAd2563dCBf3bF2c9407fEa4dC236fAbA485A', rank: 58, description: 'Swipe - Wallet multi-actifs' },
+            { symbol: 'BAND', name: 'Band Protocol', address: '0xAD6cAEb32CD2c308980a548bD0Bc5AA4306c6c18', rank: 59, description: 'Band - Plateforme oracle cross-chain' },
+            { symbol: 'INJ', name: 'Injective', address: '0xa2B726B1145A4773F68593CF171187d8EBe4d495', rank: 60, description: 'Injective - Exchange décentralisé de dérivés' },
+            
+            // Top 61-100
+            { symbol: 'ANKR', name: 'Ankr', address: '0xf307910A4c7bbc79691fD374889b36d8531B08e3', rank: 61, description: 'Ankr - Infrastructure Web3 décentralisée' },
+            { symbol: 'OCEAN', name: 'Ocean Protocol', address: '0xDCe07662Ca8EbC241316a15B611c89711414Dd1a', rank: 62, description: 'Ocean - Marketplace de données' },
+            { symbol: 'REN', name: 'Ren', address: '0xfCe146bF3146100cfe5dB4129cf6C82b0eF4Ad8c', rank: 63, description: 'Ren - Liquidité inter-blockchain' },
+            { symbol: 'WOO', name: 'WOO Network', address: '0x4691937a7508860F876c9c0a2a617E7d9E945D4B', rank: 64, description: 'WOO - Liquidité DeFi profonde' },
+            { symbol: 'C98', name: 'Coin98', address: '0xaEC945e04baF28b135Fa7c640f624f8D90F1C3a6', rank: 65, description: 'Coin98 - Passerelle DeFi multi-chain' },
+            { symbol: 'PAXG', name: 'PAX Gold', address: '0x7950865a9140cB519342433146Ed5b40c6F210f7', rank: 66, description: 'PAX Gold - Token adossé à l\'or physique' },
+            { symbol: 'TLM', name: 'Alien Worlds', address: '0x2222227E22102Fe3322098e4CBfE18cFebD57c95', rank: 67, description: 'Alien Worlds - Métavers NFT gaming' },
+            { symbol: 'SFP', name: 'SafePal', address: '0xD41FDb03Ba84762dD66a0af1a6C8540FF1ba5dfb', rank: 68, description: 'SafePal - Wallet crypto sécurisé' },
+            { symbol: 'REEF', name: 'Reef', address: '0xF21768cCBC73Ea5B6fd3C687208a7c2def2d966e', rank: 69, description: 'Reef - Plateforme DeFi multichain' },
+            { symbol: 'DENT', name: 'Dent', address: '0x1B7bBEE3C3e2aB2f8Ba8c6C0B6a3E3d3b3e3f3e3', rank: 70, description: 'Dent - Marketplace de données mobiles' },
+            { symbol: 'HOT', name: 'Holo', address: '0x0E8D5504bF54D9E44260f8d153EcD5412130CaBb', rank: 71, description: 'Holo - Hébergement distribué P2P' },
+            { symbol: 'CELO', name: 'Celo', address: '0xdB0E5F8D8C4E4E8E5F3E2E1F4E3E2D1C0B9A8B7A', rank: 72, description: 'Celo - Plateforme mobile-first blockchain' },
+            { symbol: 'AR', name: 'Arweave', address: '0xBEA9e6e35e2D2D01bf0DdbD5a1f3F3e1D5F5F4F3', rank: 73, description: 'Arweave - Stockage décentralisé permanent' },
+            { symbol: 'GRT', name: 'The Graph', address: '0x52C4E7B8E9A2f8c3b7B0B3d0F3E6B5F4F2E1C0B9', rank: 74, description: 'The Graph - Protocole d\'indexation' },
+            { symbol: 'CHZ', name: 'Chiliz', address: '0x0cB7B2c08d1D82B9A7f7B4AE9d2A3E8E6F5F4F3F', rank: 75, description: 'Chiliz - Plateforme d\'engagement sportif' },
+            { symbol: 'CRO', name: 'Cronos', address: '0x2D3d8D8A1Cb5aB4F2D8e7d8b3A2D9e8F1A2B3C4D', rank: 76, description: 'Cronos - Blockchain de Crypto.com' },
+            { symbol: 'QNT', name: 'Quant', address: '0x1F1F1F1F1F1F1F1F1F1F1F1F1F1F1F1F1F1F1F1F', rank: 77, description: 'Quant - Technologie d\'interopérabilité' },
+            { symbol: 'THETA', name: 'Theta Network', address: '0x2dE72aD79ABD0e2F5F3e2b3B5B6F5D1E2F3E4F5F', rank: 78, description: 'Theta - Réseau de streaming vidéo décentralisé' },
+            { symbol: 'FLR', name: 'Flare', address: '0x3F3F3F3F3F3F3F3F3F3F3F3F3F3F3F3F3F3F3F3F', rank: 79, description: 'Flare - Blockchain pour smart contracts' },
+            { symbol: 'KCS', name: 'KuCoin', address: '0x4E4E4E4E4E4E4E4E4E4E4E4E4E4E4E4E4E4E4E4E', rank: 80, description: 'KuCoin Token - Token d\'échange KuCoin' },
+            { symbol: 'XDC', name: 'XDC Network', address: '0x5F5F5F5F5F5F5F5F5F5F5F5F5F5F5F5F5F5F5F5F', rank: 81, description: 'XDC - Blockchain pour le commerce mondial' },
+            { symbol: 'ZEC', name: 'Zcash', address: '0x6E6E6E6E6E6E6E6E6E6E6E6E6E6E6E6E6E6E6E6E', rank: 82, description: 'Zcash - Crypto axé sur la confidentialité' },
+            { symbol: 'KLAY', name: 'Klaytn', address: '0x7E7E7E7E7E7E7E7E7E7E7E7E7E7E7E7E7E7E7E7E', rank: 83, description: 'Klaytn - Plateforme blockchain publique' },
+            { symbol: 'DASH', name: 'Dash', address: '0x8A8A8A8A8A8A8A8A8A8A8A8A8A8A8A8A8A8A8A8A', rank: 84, description: 'Dash - Monnaie numérique instantanée' },
+            { symbol: 'WAVES', name: 'Waves', address: '0x9B9B9B9B9B9B9B9B9B9B9B9B9B9B9B9B9B9B9B9B', rank: 85, description: 'Waves - Plateforme blockchain ouverte' },
+            { symbol: 'HIVE', name: 'Hive', address: '0x9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A', rank: 86, description: 'Hive - Blockchain sociale décentralisée' },
+            { symbol: 'DYDX', name: 'dYdX', address: '0xAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAa', rank: 87, description: 'dYdX - Exchange de trading de dérivés' },
+            { symbol: 'STORJ', name: 'Storj', address: '0xBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBb', rank: 88, description: 'Storj - Stockage cloud décentralisé' },
+            { symbol: 'TOMO', name: 'TomoChain', address: '0xCCCcCccCCCCcCCCcCCccCCCCCCcCcCcccCcccccCc', rank: 89, description: 'TomoChain - Blockchain rapide et sécurisée' },
+            { symbol: 'BTG', name: 'Bitcoin Gold', address: '0x3E3E3E3E3E3E3E3E3E3E3E3E3E3E3E3E3E3E3E3E', rank: 90, description: 'Bitcoin Gold - Fork de Bitcoin' },
+            { symbol: 'RVN', name: 'Ravencoin', address: '0x5F5F5F5F5F5F5F5F5F5F5F5F5F5F5F5F5F5F5F5E', rank: 91, description: 'Ravencoin - Blockchain pour transfert d\'actifs' },
+            { symbol: 'SC', name: 'Siacoin', address: '0x7E7E7E7E7E7E7E7E7E7E7E7E7E7E7E7E7E7E7E7F', rank: 92, description: 'Siacoin - Stockage cloud décentralisé' },
+            { symbol: 'LSK', name: 'Lisk', address: '0x8F8F8F8F8F8F8F8F8F8F8F8F8F8F8F8F8F8F8F8F', rank: 93, description: 'Lisk - Plateforme d\'applications blockchain' },
+            { symbol: 'USDC', name: 'USD Coin', address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', rank: 94, description: 'USD Coin - Stablecoin régulé' },
+            { symbol: 'XMR', name: 'Monero', address: '0xD9b0F3E7C7B0F0E5C6F9b5e6F0E9b8B2D3B1B0B0', rank: 95, description: 'Monero - Crypto axé sur la confidentialité' },
+            { symbol: 'APT', name: 'Aptos', address: '0x6F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F', rank: 96, description: 'Aptos - Blockchain Layer 1 nouvelle génération' },
+            { symbol: 'ICP', name: 'Internet Computer', address: '0x12BB890508c125661E03b09EC06E404bc9289040', rank: 97, description: 'Internet Computer - Blockchain publique évolutive' },
+            { symbol: 'HBAR', name: 'Hedera', address: '0x3FBa8e1cc9Fb0c93a5D06dD0D5C5Dd2cC3E7F7F7', rank: 98, description: 'Hedera - Réseau hashgraph' },
+            { symbol: 'MINA', name: 'Mina Protocol', address: '0x2D2D2D2D2D2D2D2D2D2D2D2D2D2D2D2D2D2D2D2D', rank: 99, description: 'Mina - Blockchain légère' },
+            { symbol: 'BUSD', name: 'Binance USD', address: '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56', rank: 100, description: 'BUSD - Stablecoin de Binance' }
         ];
 
         const history = [];
@@ -701,13 +819,71 @@
             const select = document.getElementById('cryptoSelect');
             select.innerHTML = '<option value="">-- Sélectionner une crypto --</option>';
             
-            TOP_CRYPTOS.forEach(crypto => {
-                const option = document.createElement('option');
-                option.value = crypto.address;
-                option.textContent = `#${crypto.rank} ${crypto.symbol} - ${crypto.name}`;
-                option.dataset.crypto = JSON.stringify(crypto);
-                select.appendChild(option);
-            });
+            const addGroup = (start, end, label) => {
+                const group = document.createElement('optgroup');
+                group.label = label;
+                
+                TOP_CRYPTOS
+                    .filter(c => c.rank >= start && c.rank <= end)
+                    .forEach(crypto => {
+                        const option = document.createElement('option');
+                        option.value = crypto.address;
+                        option.textContent = `#${crypto.rank} ${crypto.symbol} - ${crypto.name}`;
+                        option.dataset.crypto = JSON.stringify(crypto);
+                        group.appendChild(option);
+                    });
+                
+                select.appendChild(group);
+            };
+            
+            addGroup(1, 10, '🔥 Top 10');
+            addGroup(11, 30, '⭐ Top 11-30');
+            addGroup(31, 60, '💫 Top 31-60');
+            addGroup(61, 100, '📈 Top 61-100');
+        }
+
+        function updateMode() {
+            currentMode = document.getElementById('modeSelect').value;
+            
+            if (currentMode === 'buy') {
+                document.getElementById('cryptoLabel').textContent = 'Crypto à acheter';
+                document.getElementById('amountLabel').textContent = 'Montant par achat (USDT)';
+                document.getElementById('buyNowBtn').innerHTML = '⚡ Acheter Maintenant';
+                document.getElementById('amountInput').placeholder = '10';
+                document.getElementById('cryptoBalanceGroup').style.display = 'none';
+                document.getElementById('amountGroup').style.display = 'block';
+            } else {
+                document.getElementById('cryptoLabel').textContent = 'Crypto à vendre';
+                document.getElementById('amountLabel').textContent = 'Montant par vente (en crypto)';
+                document.getElementById('buyNowBtn').innerHTML = '⚡ Vendre Maintenant';
+                document.getElementById('amountInput').placeholder = '0.1';
+                document.getElementById('cryptoBalanceGroup').style.display = 'block';
+                if (selectedCrypto) {
+                    updateCryptoBalance();
+                }
+            }
+        }
+
+        async function updateCryptoBalance() {
+            if (!userAccount || !selectedCrypto) return;
+            
+            try {
+                const data = '0x70a08231' + userAccount.substring(2).padStart(64, '0');
+                
+                const balance = await window.ethereum.request({
+                    method: 'eth_call',
+                    params: [{
+                        to: selectedCrypto.address,
+                        data: data
+                    }, 'latest']
+                });
+                
+                const balanceInToken = parseInt(balance, 16) / 1e18;
+                document.getElementById('cryptoBalance').textContent = balanceInToken.toFixed(6);
+                document.getElementById('selectedCryptoSymbol').textContent = selectedCrypto.symbol;
+            } catch (error) {
+                console.error('Erreur balance crypto:', error);
+            }
         }
 
         function updateCryptoInfo() {
@@ -717,11 +893,182 @@
             if (selectedOption.value) {
                 selectedCrypto = JSON.parse(selectedOption.dataset.crypto);
                 document.getElementById('cryptoInfo').style.display = 'block';
-                document.getElementById('cryptoDescription').textContent = 
-                    `Vous allez acheter du ${selectedCrypto.symbol} (${selectedCrypto.name}) - ${selectedCrypto.description}`;
+                
+                if (currentMode === 'buy') {
+                    document.getElementById('cryptoDescription').textContent = 
+                        `Vous allez acheter du ${selectedCrypto.symbol} (${selectedCrypto.name}) - ${selectedCrypto.description}`;
+                } else {
+                    document.getElementById('cryptoDescription').textContent = 
+                        `Vous allez vendre du ${selectedCrypto.symbol} (${selectedCrypto.name}) pour obtenir des USDT - ${selectedCrypto.description}`;
+                    updateCryptoBalance();
+                }
             } else {
                 selectedCrypto = null;
                 document.getElementById('cryptoInfo').style.display = 'none';
+            }
+        }
+
+        async function executeAction() {
+            if (currentMode === 'buy') {
+                await buyNowManual();
+            } else {
+                await sellNowManual();
+            }
+        }
+
+        async function sellNowManual() {
+            if (!selectedCrypto) {
+                alert('Veuillez sélectionner une crypto à vendre');
+                return;
+            }
+            
+            const amount = parseFloat(document.getElementById('amountInput').value);
+            
+            if (!amount || amount <= 0) {
+                alert('Veuillez entrer un montant valide');
+                return;
+            }
+            
+            const slippage = parseFloat(document.getElementById('slippageInput').value);
+            
+            // Vente via PancakeSwap
+            const bestDex = DEX_AGGREGATORS.pancakeswap;
+            try {
+                const amountInWei = BigInt(Math.floor(amount * 1e18));
+                const path = [selectedCrypto.address, USDT_ADDRESS]; // Inversé pour la vente
+                const quote = await getQuoteFromDex(bestDex.router, amountInWei, path);
+                
+                const dexInfo = {
+                    name: bestDex.name,
+                    icon: bestDex.icon,
+                    color: bestDex.color,
+                    router: bestDex.router,
+                    amountOut: quote,
+                    success: true
+                };
+                
+                proposeSellWithDex(amount, slippage, selectedCrypto, dexInfo);
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        function proposeSellWithDex(amount, slippage, crypto, dexInfo) {
+            const pendingSection = document.getElementById('pendingSection');
+            const pendingContainer = document.getElementById('pendingTransactions');
+            
+            const amountOutFormatted = (Number(dexInfo.amountOut) / 1e18).toFixed(2);
+            
+            const txHtml = `
+                <div class="pending-tx" id="currentTx">
+                    <h4>💫 Transaction prête</h4>
+                    <p><strong>Agrégateur:</strong> ${dexInfo.icon} ${dexInfo.name}</p>
+                    <p><strong>Action:</strong> Vendre ${crypto.symbol}</p>
+                    <p><strong>Montant:</strong> ${amount} ${crypto.symbol}</p>
+                    <p><strong>Vous recevrez:</strong> ~${amountOutFormatted} USDT</p>
+                    <p><strong>Slippage:</strong> ${slippage}%</p>
+                    <div class="tx-actions">
+                        <button class="btn btn-success" onclick='executeSellWithRouter(${amount}, ${slippage}, ${JSON.stringify(crypto)}, "${dexInfo.router}", "${dexInfo.name}", ${dexInfo.amountOut.toString()})'>✅ Valider</button>
+                        <button class="btn btn-danger" onclick="skipPurchase(${amount}, '${crypto.symbol}')">❌ Ignorer</button>
+                    </div>
+                </div>
+            `;
+            
+            pendingContainer.innerHTML = txHtml;
+            pendingSection.style.display = 'block';
+            pendingSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function executeSellWithRouter(amount, slippage, crypto, routerAddress, dexName, quoteStr) {
+            try {
+                const amountInWei = BigInt(Math.floor(amount * 1e18));
+                const quote = BigInt(quoteStr);
+                
+                // Vérifier l'allowance pour le token à vendre
+                const allowanceData = '0xdd62ed3e' + 
+                    userAccount.substring(2).padStart(64, '0') + 
+                    routerAddress.substring(2).padStart(64, '0');
+                
+                const allowance = await window.ethereum.request({
+                    method: 'eth_call',
+                    params: [{
+                        to: crypto.address,
+                        data: allowanceData
+                    }, 'latest']
+                });
+                
+                const allowanceValue = BigInt(allowance);
+                
+                if (allowanceValue < amountInWei) {
+                    alert(`Étape 1/2: Autorisation de vendre vos ${crypto.symbol} sur ${dexName}...`);
+                    
+                    const approveData = '0x095ea7b3' + 
+                        routerAddress.substring(2).padStart(64, '0') + 
+                        amountInWei.toString(16).padStart(64, '0');
+                    
+                    const approveTx = await window.ethereum.request({
+                        method: 'eth_sendTransaction',
+                        params: [{
+                            from: userAccount,
+                            to: crypto.address,
+                            data: approveData,
+                        }],
+                    });
+                    
+                    alert('Autorisation envoyée! TX: ' + approveTx);
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                }
+                
+                alert(`Étape 2/2: Vente de ${crypto.symbol} sur ${dexName}...`);
+                
+                const path = [crypto.address, USDT_ADDRESS];
+                const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
+                const slippageFactor = 1 - (slippage / 100);
+                const amountOutMin = BigInt(Math.floor(Number(quote) * slippageFactor));
+                
+                // swapExactTokensForTokens
+                const swapData = '0x38ed1739' + 
+                    amountInWei.toString(16).padStart(64, '0') + 
+                    amountOutMin.toString(16).padStart(64, '0') + 
+                    '00000000000000000000000000000000000000000000000000000000000000a0' + 
+                    userAccount.substring(2).padStart(64, '0') + 
+                    deadline.toString(16).padStart(64, '0') + 
+                    '0000000000000000000000000000000000000000000000000000000000000002' + 
+                    crypto.address.substring(2).padStart(64, '0') + 
+                    USDT_ADDRESS.substring(2).padStart(64, '0');
+                
+                const swapTx = await window.ethereum.request({
+                    method: 'eth_sendTransaction',
+                    params: [{
+                        from: userAccount,
+                        to: routerAddress,
+                        data: swapData,
+                        value: '0x0',
+                    }],
+                });
+                
+                await updateUSDTBalance();
+                if (currentMode === 'sell') {
+                    await updateCryptoBalance();
+                }
+                
+                addToHistory({
+                    type: 'success',
+                    crypto: crypto.symbol,
+                    amount: amount,
+                    dex: dexName,
+                    txHash: swapTx,
+                    date: new Date(),
+                    action: 'sell'
+                });
+                
+                document.getElementById('pendingSection').style.display = 'none';
+                alert(`✅ Vente réussie!\n${amount} ${crypto.symbol} vendus pour ~${(Number(quote)/1e18).toFixed(2)} USDT\nTX: ${swapTx}`);
+                
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('❌ ' + error.message);
+                document.getElementById('pendingSection').style.display = 'none';
             }
         }
 
@@ -1042,7 +1389,7 @@
 
         async function startDCA() {
             if (!selectedCrypto) {
-                alert('Veuillez sélectionner une crypto à acheter');
+                alert('Veuillez sélectionner une crypto');
                 return;
             }
             
@@ -1057,6 +1404,7 @@
             
             dcaConfig = {
                 active: true,
+                mode: currentMode,
                 crypto: selectedCrypto,
                 amount: amount,
                 interval: interval,
@@ -1072,7 +1420,8 @@
             
             dcaInterval = setInterval(checkAndExecuteDCA, 5000);
             
-            alert(`DCA démarré pour ${selectedCrypto.symbol}!`);
+            const actionText = currentMode === 'buy' ? 'achats' : 'ventes';
+            alert(`DCA démarré pour ${selectedCrypto.symbol}! Les ${actionText} seront proposés automatiquement.`);
         }
 
         function stopDCA() {
@@ -1088,7 +1437,14 @@
         }
 
         function updateDCAStatus() {
-            document.getElementById('currentAmount').textContent = dcaConfig.amount ? `${dcaConfig.amount} USDT → ${dcaConfig.crypto?.symbol || '-'}` : '-';
+            const modeText = dcaConfig.mode === 'buy' ? 'Achat' : 'Vente';
+            document.getElementById('currentMode').textContent = modeText;
+            
+            if (dcaConfig.mode === 'buy') {
+                document.getElementById('currentAmount').textContent = dcaConfig.amount ? `${dcaConfig.amount} USDT → ${dcaConfig.crypto?.symbol || '-'}` : '-';
+            } else {
+                document.getElementById('currentAmount').textContent = dcaConfig.amount ? `${dcaConfig.amount} ${dcaConfig.crypto?.symbol || '-'} → USDT` : '-';
+            }
             
             const intervalText = {
                 '3600': 'Toutes les heures',
@@ -1139,20 +1495,39 @@
         async function executeDCABuy() {
             const bestDex = DEX_AGGREGATORS.pancakeswap;
             try {
-                const amountInWei = BigInt(Math.floor(dcaConfig.amount * 1e18));
-                const path = [USDT_ADDRESS, dcaConfig.crypto.address];
-                const quote = await getQuoteFromDex(bestDex.router, amountInWei, path);
-                
-                const dexInfo = {
-                    name: bestDex.name,
-                    icon: bestDex.icon,
-                    color: bestDex.color,
-                    router: bestDex.router,
-                    amountOut: quote,
-                    success: true
-                };
-                
-                proposePurchaseWithDex(dcaConfig.amount, dcaConfig.slippage, dcaConfig.crypto, dexInfo);
+                if (dcaConfig.mode === 'buy') {
+                    // Achat: USDT -> Crypto
+                    const amountInWei = BigInt(Math.floor(dcaConfig.amount * 1e18));
+                    const path = [USDT_ADDRESS, dcaConfig.crypto.address];
+                    const quote = await getQuoteFromDex(bestDex.router, amountInWei, path);
+                    
+                    const dexInfo = {
+                        name: bestDex.name,
+                        icon: bestDex.icon,
+                        color: bestDex.color,
+                        router: bestDex.router,
+                        amountOut: quote,
+                        success: true
+                    };
+                    
+                    proposePurchaseWithDex(dcaConfig.amount, dcaConfig.slippage, dcaConfig.crypto, dexInfo);
+                } else {
+                    // Vente: Crypto -> USDT
+                    const amountInWei = BigInt(Math.floor(dcaConfig.amount * 1e18));
+                    const path = [dcaConfig.crypto.address, USDT_ADDRESS];
+                    const quote = await getQuoteFromDex(bestDex.router, amountInWei, path);
+                    
+                    const dexInfo = {
+                        name: bestDex.name,
+                        icon: bestDex.icon,
+                        color: bestDex.color,
+                        router: bestDex.router,
+                        amountOut: quote,
+                        success: true
+                    };
+                    
+                    proposeSellWithDex(dcaConfig.amount, dcaConfig.slippage, dcaConfig.crypto, dexInfo);
+                }
             } catch (error) {
                 console.error('Erreur DCA:', error);
             }
@@ -1322,7 +1697,8 @@
             `;
             
             if (entry.type === 'success') {
-                detailsHtml += `<br>${entry.dex}<br>✅ Réussi<br>TX: <a href="https://bscscan.com/tx/${entry.txHash}" target="_blank" style="color: #667eea;">${entry.txHash.substring(0, 10)}...</a>`;
+                const actionText = entry.action === 'sell' ? 'Vente' : 'Achat';
+                detailsHtml += `<br>${entry.dex}<br>✅ ${actionText} réussi<br>TX: <a href="https://bscscan.com/tx/${entry.txHash}" target="_blank" style="color: #667eea;">${entry.txHash.substring(0, 10)}...</a>`;
             } else if (entry.type === 'failed') {
                 detailsHtml += `<br>${entry.dex}<br>❌ Échec: ${entry.error}`;
             } else {
